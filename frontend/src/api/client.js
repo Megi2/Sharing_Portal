@@ -2,7 +2,7 @@
  * src/api/client.js
  * ─────────────────────────────────────────
  * axios 인스턴스: JWT 자동 첨부 + 401 시 토큰 갱신
- * 
+ *
  * 모든 API 호출은 이 인스턴스를 통해야 합니다.
  * import api from '@/api/client';
  * const res = await api.get('/assets/');
@@ -34,10 +34,9 @@ api.interceptors.response.use(
 
       const refreshToken = localStorage.getItem('refreshToken');
       if (!refreshToken) {
-        // 리프레시 토큰도 없으면 로그아웃
+        // 리프레시 토큰도 없으면 토큰 정리 (React 상태에서 로그아웃 처리)
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
-        window.location.href = '/login';
         return Promise.reject(error);
       }
 
@@ -53,7 +52,6 @@ api.interceptors.response.use(
       } catch {
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
-        window.location.href = '/login';
         return Promise.reject(error);
       }
     }
