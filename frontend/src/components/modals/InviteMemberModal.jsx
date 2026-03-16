@@ -21,7 +21,24 @@ export default function InviteMemberModal({ onClose, onInvite }) {
       await onInvite(formData);
       onClose();
     } catch (err) {
-      const serverMsg = err?.response?.data?.message || err?.response?.data?.email?.[0] || err?.response?.data?.detail || "사용자 생성에 실패했습니다. 입력값을 확인해주세요.";
+      const resData = err?.response?.data;
+        
+      // ApiRenderer: { success: false, data: null, message: { email: ["..."] } }
+      const msgPayload = resData?.message;
+        
+      let serverMsg = "사용자 생성에 실패했습니다. 입력값을 확인해주세요.";
+        
+      if (typeof msgPayload === "string") {
+        serverMsg = msgPayload;
+      } else if (msgPayload && typeof msgPayload === "object") {
+        // { email: ["이미 사용중입니다."], name: ["..."] } 형태
+        const firstField = Object.values(msgPayload)[0];
+        if (Array.isArray(firstField)) serverMsg = firstField[0];
+        else if (typeof firstField === "string") serverMsg = firstField;
+      } else if (typeof resData?.detail === "string") {
+        serverMsg = resData.detail;
+      }
+      
       setError(serverMsg);
     } finally {
       setLoading(false);

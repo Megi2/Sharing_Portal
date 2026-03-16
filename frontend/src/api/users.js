@@ -6,9 +6,10 @@
 import api from './client';
 
 export async function getUsers(params = {}) {
-  // params: { status, dept, role, search, page }
   const { data } = await api.get('/users/', { params });
-  return data.data;
+  const payload = Array.isArray(data) ? data : (data.data ?? data);
+  // 페이지네이션 응답: { count, next, results: [...] }
+  return Array.isArray(payload) ? payload : (payload.results ?? []);
 }
 
 export async function createUser(payload) {
