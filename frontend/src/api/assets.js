@@ -1,64 +1,81 @@
+import client from "./client";
+
 /**
- * src/api/assets.js
- * ─────────────────────────────────────────
- * 자산 CRUD + 버전 + ACL
+ * GET /api/assets
+ * Params: type(VIDEO|DOCUMENT|all), categoryId, tag, q, sort(latest|popular)
+ * Response: paginated → .results 또는 array
  */
-import api from './client';
-
-// ── 자산 목록 ──
 export async function getAssets(params = {}) {
-  // params: { type, categoryId, tag, q, sort, page }
-  const { data } = await api.get('/assets/', { params });
-  return data.data; // paginated list
+  const res = await client.get("/api/assets", { params });
+  // PageNumberPagination: { count, next, previous, results }
+  const data = res.data;
+  return Array.isArray(data) ? data : (data?.results ?? []);
 }
 
-// ── 자산 상세 ──
+/**
+ * GET /api/assets/:id
+ */
 export async function getAsset(id) {
-  const { data } = await api.get(`/assets/${id}`);
-  return data.data;
+  const res = await client.get(`/api/assets/${id}`);
+  return res.data;
 }
 
-// ── 자산 생성 ──
+/**
+ * POST /api/assets
+ */
 export async function createAsset(payload) {
-  // payload: { type, categoryId, title, description, tags, viewScope, downloadAllowed, initialVersion }
-  const { data } = await api.post('/assets/', payload);
-  return data.data;
+  const res = await client.post("/api/assets", payload);
+  return res.data;
 }
 
-// ── 자산 수정 ──
+/**
+ * PATCH /api/assets/:id
+ * Payload: { publishStatus, viewScope, downloadAllowed, title, description, ... }
+ *
+ * publishStatus 값: DRAFT | REVIEW | PUBLISHED | ARCHIVED
+ * viewScope 값:     ALL_USERS | ADMIN_ONLY | CUSTOM
+ */
 export async function updateAsset(id, payload) {
-  // payload: { title, description, viewScope, downloadAllowed, publishStatus, securityLabel }
-  const { data } = await api.patch(`/assets/${id}`, payload);
-  return data.data;
+  const res = await client.patch(`/api/assets/${id}`, payload);
+  return res.data;
 }
 
-// ── 자산 삭제 ──
+/**
+ * DELETE /api/assets/:id
+ */
 export async function deleteAsset(id) {
-  await api.delete(`/assets/${id}`);
+  await client.delete(`/api/assets/${id}`);
 }
 
-// ── 버전 목록 ──
-export async function getVersions(assetId) {
-  const { data } = await api.get(`/assets/${assetId}/versions`);
-  return data.data;
-}
+// ────────────────────────────────────────────
+// Status / scope 라벨 매핑 (UI ↔ API)
+// ────────────────────────────────────────────
+export const PUBLISH_STATUS_LABELS = {
+  DRAFT:     "보안재생",
+  REVIEW:    "검토중",
+  PUBLISHED: "공유가능",
+  ARCHIVED:  "열람제한",
+};
 
-// ── 새 버전 등록 ──
-export async function createVersion(assetId, payload) {
-  // payload: { sourceType, sourceUrl, sourceFileId, note }
-  const { data } = await api.post(`/assets/${assetId}/versions`, payload);
-  return data.data;
-}
+export const PUBLISH_STATUS_REVERSE = Object.fromEntries(
+  Object.entries(PUBLISH_STATUS_LABELS).map(([k, v]) => [v, k])
+);
 
-// ── ACL 조회 ──
-export async function getPermissions(assetId) {
-  const { data } = await api.get(`/assets/${assetId}/permissions`);
-  return data.data;
-}
+export const VIEW_SCOPE_LABELS = {
+  ALL_USERS:  "all-users",
+  ADMIN_ONLY: "admin-only",
+  CUSTOM:     "custom",
+};
 
-// ── ACL 설정 (전체 교체) ──
-export async function setPermissions(assetId, rules) {
-  // rules: [{ subjectType, subjectId, canView, canDownload }]
-  const { data } = await api.put(`/assets/${assetId}/permissions`, { rules });
-  return data.data;
+/** API 자산 객체 → 기존 프론트엔드 형태로 정규화 */
+export function normalizeAsset(a) {
+  return {
+    ...a,
+    status: PUBLISH_STATUS_LABELS[a.publishStatus] ?? a.publishStatus ?? "공유가능",
+    viewPermission: VIEW_SCOPE_LABELS[a.viewScope] ?? a.viewScope ?? "all-users",
+    downloadAllowed: a.downloadAllowed ?? false,
+    tags: a.tags ?? [],
+    category: a.category ?? "기타",
+    type: (a.type ?? "DOCUMENT").toLowerCase() === "video" ? "video" : "document",
+  };
 }

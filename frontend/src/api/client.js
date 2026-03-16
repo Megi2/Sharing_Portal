@@ -1,63 +1,53 @@
-/**
- * src/api/client.js
- * ─────────────────────────────────────────
- * axios 인스턴스: JWT 자동 첨부 + 401 시 토큰 갱신
- *
- * 모든 API 호출은 이 인스턴스를 통해야 합니다.
- * import api from '@/api/client';
- * const res = await api.get('/assets/');
- */
-import axios from 'axios';
+import axios from "axios";
 
-const api = axios.create({
-  baseURL: '/api',  // vite proxy가 localhost:8000으로 전달
-  headers: { 'Content-Type': 'application/json' },
+const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+
+const client = axios.create({
+  baseURL: BASE_URL,
+  headers: { "Content-Type": "application/json" },
 });
 
-// ── 요청 인터셉터: 매 요청마다 토큰 자동 첨부 ──
-api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('accessToken');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
+// ── Request: JWT 토큰 자동 첨부
+client.interceptors.request.use((config) => {
+  const token = localStorage.getItem("accessToken");
+  if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
-// ── 응답 인터셉터: 401이면 refreshToken으로 재시도 ──
-api.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const originalRequest = error.config;
-
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
-
-      const refreshToken = localStorage.getItem('refreshToken');
-      if (!refreshToken) {
-        // 리프레시 토큰도 없으면 토큰 정리 (React 상태에서 로그아웃 처리)
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        return Promise.reject(error);
-      }
-
-      try {
-        // SimpleJWT 토큰 갱신
-        const res = await axios.post('/api/auth/token/refresh', {
-          refresh: refreshToken,
-        });
-        const newAccess = res.data.access;
-        localStorage.setItem('accessToken', newAccess);
-        originalRequest.headers.Authorization = `Bearer ${newAccess}`;
-        return api(originalRequest);
-      } catch {
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        return Promise.reject(error);
-      }
+// ── Response: ApiRenderer { success, data, message } 언래핑
+// 성공 → response.data.data 반환
+// 실패 → message 꺼내서 throw
+client.interceptors.response.use(
+  (response) => {
+    const body = response.data;
+    if (body && body.success === false) {
+      const msg =
+        typeof body.message === "string"
+          ? body.message
+          : body.message
+          ? Object.values(body.message).flat().join(" / ")
+          : "알 수 없는 오류";
+      throw new Error(msg);
     }
-
-    return Promise.reject(error);
+    // 언래핑된 data 반환 (없으면 원본 body)
+    response.data = body?.data ?? body;
+    return response;
+  },
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("interx_user");
+      window.location.href = "/";
+    }
+    const body = error.response?.data;
+    const msg =
+      typeof body?.message === "string"
+        ? body.message
+        : body?.message
+        ? Object.values(body.message).flat().join(" / ")
+        : error.message || "서버 오류가 발생했습니다.";
+    return Promise.reject(new Error(msg));
   }
 );
 
-export default api;
+export default client;

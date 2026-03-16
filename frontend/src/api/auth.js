@@ -1,30 +1,35 @@
+import client from "./client";
+
 /**
- * src/api/auth.js
- * ─────────────────────────────────────────
- * POST /api/auth/login   → 로그인
- * GET  /api/auth/me      → 내 정보
+ * POST /api/auth/login
+ * Response data: { accessToken, user: { id, name, email, roles, dept, status } }
  */
-import api from './client';
-
 export async function login(email, password) {
-  const { data } = await api.post('/auth/login', { email, password });
-  // data.data = { accessToken, refreshToken, user }
-  const result = data.data;
-
-  // 토큰 저장
-  localStorage.setItem('accessToken', result.accessToken);
-  localStorage.setItem('refreshToken', result.refreshToken);
-
-  return result;
+  const res = await client.post("/api/auth/login", { email, password });
+  const { accessToken, user } = res.data;
+  localStorage.setItem("accessToken", accessToken);
+  localStorage.setItem("interx_user", JSON.stringify(user));
+  return user;
 }
 
+/**
+ * GET /api/auth/me
+ */
 export async function getMe() {
-  const { data } = await api.get('/auth/me');
-  return data.data; // { id, name, email, roles, dept, position, status }
+  const res = await client.get("/api/auth/me");
+  return res.data;
 }
 
 export function logout() {
-  localStorage.removeItem('accessToken');
-  localStorage.removeItem('refreshToken');
-  window.location.href = '/login';
+  localStorage.removeItem("accessToken");
+  localStorage.removeItem("interx_user");
+}
+
+export function getCachedUser() {
+  try {
+    const raw = localStorage.getItem("interx_user");
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
 }
